@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+
+# Raycast build output
+dist/
+build/
+
+# macOS noise
+.DS_Store
+
+# Logs
+*.log
