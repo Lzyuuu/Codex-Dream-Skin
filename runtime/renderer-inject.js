@@ -12,6 +12,7 @@
     "data-dream-art-wide", "data-dream-art-safe", "data-dream-task-mode",
     "data-dream-art-safe-area", "data-dream-art-task-mode", "data-dream-art-aspect",
     "data-dream-art-ready",
+    "data-dream-skin-video",
   ];
   const VERSION = __DREAM_SKIN_VERSION_JSON__;
   const STYLE_REVISION = __DREAM_SKIN_STYLE_REVISION_JSON__;
@@ -96,6 +97,22 @@
     for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
     return URL.createObjectURL(new Blob([bytes], { type: mime }));
   })();
+  const isVideo = /^data:video\//.test(artDataUrl);
+  const video = isVideo ? document.createElement("video") : null;
+  if (video) {
+    video.className = "codex-skin-video";
+    video.src = artUrl;
+    video.autoplay = true;
+    video.loop = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = "auto";
+    video.addEventListener("ended", () => {
+      video.currentTime = 0;
+      void video.play().catch(() => {});
+    });
+    video.setAttribute("aria-hidden", "true");
+  }
 
   const cssString = (value) => JSON.stringify(String(value ?? ""));
 
@@ -611,6 +628,17 @@
     const shell = resolvedShell();
     setAttribute(root, "data-dream-skin", "active");
     setAttribute(root, SHELL_ATTR, shell);
+    if (isVideo) {
+      setAttribute(root, "data-dream-skin-video", "active");
+      const mainSelector = selectorByKey.get("shell-main")?.selector;
+      const mainSurface = mainSelector ? document.querySelector(mainSelector) : null;
+      const sidebarSelector = selectorByKey.get("left-panel")?.selector;
+      const sidebar = sidebarSelector ? document.querySelector(sidebarSelector) : null;
+      let videoHost = mainSurface?.parentElement ?? null;
+      while (videoHost && sidebar && !videoHost.contains(sidebar)) videoHost = videoHost.parentElement;
+      if (videoHost === document.body || videoHost === document.documentElement) videoHost = mainSurface;
+      if (video && videoHost && video.parentElement !== videoHost) videoHost.append(video);
+    }
     setStyleProperty(root, "--dream-skin-art", `url("${artUrl}")`);
     applyTheme(root, shell);
     applyArtMetadata(root);
@@ -793,6 +821,7 @@
       }
     }
     removeParts();
+    video?.remove();
     state?.rootObserver?.disconnect();
     state?.partObserver?.disconnect();
     if (bodyReadyHandler && typeof document.removeEventListener === "function") {

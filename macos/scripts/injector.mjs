@@ -50,7 +50,7 @@ const SKIN_VERSION = "1.5.14";
 export { SKIN_VERSION };
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
 const CDP_ID_PATTERN = /^[A-Za-z0-9._-]{1,200}$/;
-const MAX_ART_BYTES = 10 * 1024 * 1024;
+const MAX_ART_BYTES = 32 * 1024 * 1024;
 const MAX_SAFE_CSS_BYTES = 256 * 1024;
 const OPERATION_UI_HOST_ID = "chatgpt-dream-skin-operation";
 const OPERATION_UI_REGISTRY_KEY = "__CHATGPT_DREAM_SKIN_OPERATION_UI__";
@@ -732,7 +732,7 @@ export async function loadTheme(themeDir) {
   assertContainedPath(assetsRoot, imagePath, "Theme image");
   const imageStat = await fs.stat(imagePath);
   const extension = path.extname(theme.image).toLowerCase();
-  if (![".png", ".jpg", ".jpeg", ".webp"].includes(extension)) {
+  if (![".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm"].includes(extension)) {
     throw new Error(`Unsupported theme image format: ${extension || "missing"}`);
   }
   let imageHandle;
@@ -804,14 +804,15 @@ export async function loadPayload(themeDir) {
   const { art, extension, safeCssRuntime, safeCssStatus, theme } = loaded;
   const combinedCss = safeCssRuntime ? `${css}\n${safeCssRuntime}\n` : css;
   const styleRevision = createHash("sha256").update(combinedCss).digest("hex").slice(0, 20);
-  const artMetadata = readImageMetadata(art, extension);
-  if (!artMetadata) {
+  const artMetadata = /\.mp4$|\.webm$/i.test(extension) ? null : readImageMetadata(art, extension);
+  if (!artMetadata && !/\.mp4$|\.webm$/i.test(extension)) {
     throw new Error("Theme image metadata is invalid or exceeds the 16384px / 50MP safety limit");
   }
   const artKey = createHash("sha256").update(art).digest("hex").slice(0, 20);
   theme.artMetadata = artMetadata;
   theme.artKey = artKey;
-  const mime = extension === ".jpg" || extension === ".jpeg" ? "image/jpeg"
+  const mime = extension === ".mp4" ? "video/mp4" : extension === ".webm" ? "video/webm"
+    : extension === ".jpg" || extension === ".jpeg" ? "image/jpeg"
     : extension === ".webp" ? "image/webp" : "image/png";
   const artDataUrl = `data:${mime};base64,${art.toString("base64")}`;
   const revision = createHash("sha256")
@@ -1530,11 +1531,34 @@ async function writeModeAck(ackPath, operationToken, mode) {
   }
 }
 
-function isFreshBusyOperation(operation) {
+function isFreshBusyOperation(operation, nowMs = Date.now()) {
+  if (!operation) return false;
   if (operation.status !== "applying" && operation.status !== "pausing") return false;
-  const ageSeconds = Date.now() / 1000 - operation.updatedAt;
+  const ageSeconds = nowMs / 1000 - operation.updatedAt;
   const maxAgeSeconds = operation.status === "applying" ? 180 : 90;
   return ageSeconds >= -5 && ageSeconds <= maxAgeSeconds;
+}
+
+function terminalOperationUiState(operation) {
+  if (operation?.status === "failed") return "error";
+  if (operation?.status === "cancelled") return "cancelled";
+  if (operation?.status === "success" || operation?.status === "paused") return "success";
+  return null;
+}
+
+export function resolveSetupOperation(capturedOperation, latestOperation, nowMs = Date.now()) {
+  const validToken = (operation) =>
+    /^\d{1,12}:\d{13}:\d{1,8}$/.test(operation?.token ?? "");
+  const operation = validToken(latestOperation) ? latestOperation : capturedOperation;
+  if (!validToken(operation)) return { operation: null, uiState: null };
+  if (isFreshBusyOperation(operation, nowMs)) return { operation, uiState: "loading" };
+
+  const uiState = terminalOperationUiState(operation);
+  const ttlSeconds = operation.status === "failed" ? 120
+    : operation.status === "cancelled" ? 20 : uiState === "success" ? 12 : 0;
+  const ageSeconds = nowMs / 1000 - operation.updatedAt;
+  if (uiState && ageSeconds >= -5 && ageSeconds <= ttlSeconds) return { operation, uiState };
+  return { operation: null, uiState: null };
 }
 
 async function watchOperationState(statePath, onState) {
@@ -1979,9 +2003,8 @@ async function runWatch(options) {
               });
             }, 0);
           });
-          const initialOperation = activeOperation;
-          recoveryOperation = initialOperation ? null : cycleRecovery;
-          const pausing = initialOperation?.status === "pausing";
+          const capturedOperation = activeOperation;
+          const pausing = capturedOperation?.status === "pausing";
           if (!controlOnly) {
             try {
               record.earlyScriptId = await registerEarlyForRecord(
@@ -2006,22 +2029,49 @@ async function runWatch(options) {
             continue;
           }
           rejected.delete(target.id);
+          let latestOperation = null;
+          if (options.operationState) {
+            latestOperation = await readOperationState(options.operationState).catch((error) => {
+              if (error?.code !== "ENOENT") {
+                console.error(`[dream-skin] operation reconciliation unavailable: ${error.message}`);
+              }
+              return null;
+            });
+          }
+          const setupOperation = resolveSetupOperation(
+            capturedOperation,
+            latestOperation,
+          );
+          const initialOperation = setupOperation.uiState === "loading"
+            ? setupOperation.operation : null;
+          const terminalOperation = setupOperation.uiState !== "loading"
+            ? setupOperation.operation : null;
+          if (terminalOperation && activeOperation?.token === terminalOperation.token) {
+            activeOperation = null;
+          }
+          recoveryOperation = setupOperation.operation ? null : cycleRecovery;
           if (controlOnly || pausing || mutationEpoch !== connectionEpoch) {
             await invalidateEarly(record);
           }
-          if (controlOnly && !initialOperation) {
+          if (controlOnly && !initialOperation && !terminalOperation) {
             console.log(`[dream-skin] connected control-only target ${target.id}`);
             continue;
           }
           record.operationToken = initialOperation?.token
+            ?? terminalOperation?.token
             ?? recoveryOperation?.token
             ?? nextOperationToken();
-          record.operationExternal = Boolean(initialOperation || recoveryOperation);
+          record.operationExternal = Boolean(
+            initialOperation || terminalOperation || recoveryOperation,
+          );
           await presentOperationUi(
             session,
             record.operationToken,
-            "loading",
-            initialOperation
+            setupOperation.uiState ?? "loading",
+            terminalOperation
+              ? terminalOperation.message || (setupOperation.uiState === "error"
+                ? "操作失败，请重试" : "操作已完成")
+              : initialOperation
               ? operationKindMessage(initialOperation.status === "pausing" ? "pause" : "apply")
               : recoveryOperation
                 ? "暂停未完成，正在恢复原皮肤…"

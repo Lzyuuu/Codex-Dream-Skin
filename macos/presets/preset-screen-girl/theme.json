@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "preset-screen-girl",
+  "name": "霓光触界 / Neon Threshold",
+  "brandSubtitle": "CODEX DREAM SKIN",
+  "tagline": "让霓虹穿过屏幕，照亮下一步。",
+  "projectPrefix": "选择项目 · ",
+  "projectLabel": "◉  选择项目",
+  "statusText": "VIDEO BACKGROUND ONLINE",
+  "quote": "STEP INTO THE LIGHT",
+  "colors": {
+    "background": "#090b18",
+    "panel": "#17152b",
+    "panelAlt": "#242044",
+    "accent": "#c879ff",
+    "accentAlt": "#ff9fdb",
+    "secondary": "#73e7ff",
+    "highlight": "#6f45bb",
+    "text": "#fff7ff",
+    "muted": "#c9c0dc",
+    "line": "rgba(200, 121, 255, .32)"
+  },
+  "image": "background.mp4",
+  "appearance": "auto",
+  "art": {
+    "focusX": 0.5,
+    "focusY": 0.5,
+    "safeArea": "left",
+    "taskMode": "ambient"
+  }
+}

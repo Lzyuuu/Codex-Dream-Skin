@@ -1209,7 +1209,7 @@ function Expand-DreamSkinThemeZipSecurely {
     $officialNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
     foreach ($name in @(
       'manifest.json', 'manifest.sig', 'theme.json', 'theme.css', 'LICENSE.txt',
-      'background.webp', 'background.jpg', 'background.png'
+      'background.webp', 'background.jpg', 'background.png', 'background.mp4', 'background.webm'
     )) { $null = $officialNames.Add($name) }
     foreach ($sourceFile in $sourceFiles) {
       if (-not $officialNames.Contains($sourceFile.Name)) {
@@ -1217,7 +1217,7 @@ function Expand-DreamSkinThemeZipSecurely {
       }
     }
     $backgroundCount = @($sourceFiles | Where-Object {
-      $_.Name -cin @('background.webp', 'background.jpg', 'background.png')
+      $_.Name -cin @('background.webp', 'background.jpg', 'background.png', 'background.mp4', 'background.webm')
     }).Count
     if ($backgroundCount -ne 1) {
       throw 'Official theme ZIP must contain exactly one registered background file.'

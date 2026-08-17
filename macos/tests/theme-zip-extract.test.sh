@@ -69,6 +69,20 @@ make_theme_json "$TMP/official-pack/theme.json"
 "$EXTRACTOR" "$TMP/official.zip" "$TMP/official-out"
 /usr/bin/cmp -s "$TMP/official-pack/manifest.json" "$TMP/official-out/manifest.json"
 
+/bin/mkdir -p "$TMP/official-video-pack" "$TMP/official-video-out"
+/bin/cp "$TMP/official-pack/manifest.json" "$TMP/official-video-pack/manifest.json"
+/bin/cp "$TMP/official-pack/theme.css" "$TMP/official-video-pack/theme.css"
+/usr/bin/printf '%s\n' \
+  '{"schemaVersion":1,"id":"test-video-theme","name":"Test Video Theme","image":"background.mp4"}' \
+  > "$TMP/official-video-pack/theme.json"
+/usr/bin/printf 'fake-video-bytes\n' > "$TMP/official-video-pack/background.mp4"
+(
+  cd "$TMP/official-video-pack"
+  /usr/bin/zip -q "$TMP/official-video.zip" manifest.json theme.json theme.css background.mp4
+)
+"$EXTRACTOR" "$TMP/official-video.zip" "$TMP/official-video-out"
+/usr/bin/cmp -s "$TMP/official-video-pack/background.mp4" "$TMP/official-video-out/background.mp4"
+
 (
   cd "$TMP/official-pack"
   /usr/bin/zip -q "$TMP/official-without-css.zip" manifest.json theme.json background.jpg

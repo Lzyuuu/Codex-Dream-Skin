@@ -14,6 +14,7 @@ const LIMITS = Object.freeze({
   simpleTheme: 1_048_576,
   css: 262_144,
   image: 10_485_760,
+  video: 32 * 1024 * 1024,
   license: 65_536,
   signature: 4_096,
 });
@@ -22,6 +23,8 @@ const BACKGROUND_MEDIA = new Map([
   ["background.webp", "image/webp"],
   ["background.jpg", "image/jpeg"],
   ["background.png", "image/png"],
+  ["background.mp4", "video/mp4"],
+  ["background.webm", "video/webm"],
 ]);
 const PAYLOAD_MEDIA = new Map([
   ["theme.json", "application/json"],
@@ -206,7 +209,8 @@ function expectedLimit(name, simple = false) {
   if (name === "theme.css") return LIMITS.css;
   if (name === "LICENSE.txt") return LIMITS.license;
   if (name === "manifest.sig") return LIMITS.signature;
-  if (BACKGROUND_MEDIA.has(name) || /\.(?:png|jpe?g|webp)$/i.test(name)) return LIMITS.image;
+  if (BACKGROUND_MEDIA.has(name)) return /\.(?:mp4|webm)$/i.test(name) ? LIMITS.video : LIMITS.image;
+  if (/\.(?:png|jpe?g|webp)$/i.test(name)) return LIMITS.image;
   return 0;
 }
 
@@ -456,6 +460,10 @@ function detectedImageMedia(bytes) {
     && bytes.subarray(0, 4).toString() === "RIFF"
     && bytes.subarray(8, 12).toString() === "WEBP"
   ) return "image/webp";
+  if (bytes.length >= 12 && bytes.subarray(4, 8).toString() === "ftyp") {
+    const brand = bytes.subarray(8, 12).toString();
+    if (["isom", "iso2", "mp41", "mp42", "avc1"].includes(brand)) return "video/mp4";
+  }
   return "";
 }
 
@@ -509,14 +517,16 @@ async function validateSimple(root, names) {
   if (
     path.basename(theme.image) !== theme.image
     || CONTROL_PATTERN.test(theme.image)
-    || !/\.(?:png|jpe?g|webp)$/i.test(theme.image)
+    || !/\.(?:png|jpe?g|webp|mp4|webm)$/i.test(theme.image)
     || !names.includes(theme.image)
   ) fail("Local simplified theme image must be beside theme.json");
   const [imageBytes, cssBytes] = await Promise.all([
-    readStableFile(root, theme.image, LIMITS.image),
+    readStableFile(root, theme.image, /\.(?:mp4|webm)$/i.test(theme.image) ? LIMITS.video : LIMITS.image),
     readStableFile(root, "theme.css", LIMITS.css),
   ]);
-  const expectedMedia = /\.png$/i.test(theme.image)
+  const expectedMedia = /\.mp4$/i.test(theme.image) ? "video/mp4"
+    : /\.webm$/i.test(theme.image) ? "video/webm"
+    : /\.png$/i.test(theme.image)
     ? "image/png"
     : /\.webp$/i.test(theme.image) ? "image/webp" : "image/jpeg";
   if (detectedImageMedia(imageBytes) !== expectedMedia) {

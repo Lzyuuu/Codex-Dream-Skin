@@ -325,11 +325,17 @@ export async function runRendererRuntimeTest(assetRoot) {
   assert.doesNotMatch(template, /getBoundingClientRect|ResizeObserver/);
   assert.match(template, /childList:\s*true/);
   assert.match(template, /subtree:\s*true/);
+  assert.match(template, /videoHost\.append\(video\)/,
+    "Video art must stay inside the isolated app-shell surface.");
+  assert.doesNotMatch(template, /document\.body[^\n]*\.(?:prepend|append)\(video\)/,
+    "Video art must never become a body-level compositor layer.");
   // The new contract intentionally keeps the `data-dream-*` attribute names
   // and `--dream-*` custom properties.  Only the retired DOM marker classes
   // and the measured fossil selector must be absent from the canonical CSS.
   assert.doesNotMatch(css, /(?:^|[.#\s])(?:codex-dream-skin|dream-skin-home|dream-home|dream-task)(?:[\s.#:{>]|$)|home-suggestion-list-item/);
   assert.match(css, /html\[data-dream-skin="active"\]/);
+  assert.match(css, /\.codex-skin-video[\s\S]{0,180}position:\s*absolute[\s\S]{0,180}z-index:\s*-1/,
+    "Video art must paint behind main-surface content.");
   // Home gating must stay single-level: CSS forbids :has() inside :has(),
   // and Chromium drops any rule that nests it (the v1.3.1 regression).  The
   // canonical CSS therefore gates on the :has()-free home-route-css alias.
@@ -338,9 +344,16 @@ export async function runRendererRuntimeTest(assetRoot) {
   assert.match(css, /header:is\(\.app-header-tint, \[data-app-shell-header-edge-scroll\], \[class\*=\"_Header_\"\]\)/);
   assert.match(css, /:is\(\.app-shell-main-content-top-fade, \[data-app-shell-main-content-top-fade\], \[class\*=\"_MainContentTopFade_\"\]\)/);
   assert.doesNotMatch(css, /:has\([^()]*:has\(/);
-  assert.match(css, /content:\s*var\(--dream-skin-name[\s\S]{0,180}var\(--dream-skin-brand-subtitle/);
-  assert.match(css, /content:\s*var\(--dream-skin-status/);
+  assert.doesNotMatch(css, /content:\s*var\(--dream-skin-name[\s\S]{0,180}var\(--dream-skin-brand-subtitle/,
+    "Theme chrome must not paint decorative copy over native header controls.");
+  assert.doesNotMatch(css, /content:\s*var\(--dream-skin-status/,
+    "Theme chrome must not paint decorative status copy over native header controls.");
   assert.match(css, /content:\s*var\(--dream-skin-quote/);
+  assert.match(
+    css,
+    /html\[data-dream-skin="active"\]:has\(main:is\([^\n]+\) \[role="main"\]\) body \{[\s\S]{0,240}background-image:\s*var\(--dream-skin-art\)/,
+    "Every image aspect must paint the approved artwork on the current home shell.",
+  );
   assert.match(css, /--ds-task-full-veil/);
   assert.match(css, /data-dream-task-mode="full"/);
   assert.match(css, /background-image:\s*var\(--ds-task-full-veil\),\s*var\(--dream-skin-art\)/);

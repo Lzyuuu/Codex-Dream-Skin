@@ -166,6 +166,22 @@ try {
   await assert.rejects(publish(noCssStage), /require non-empty theme\.css/);
   assert.equal(await fs.readFile(path.join(activeRoot, "last-known-good"), "utf8"), "unchanged\n");
 
+  const videoStage = await makeStage("video-over-image-limit", "video-over-image-limit", {
+    imageName: "background.mp4",
+  });
+  const mediaLimitThemesRoot = path.join(tempRoot, "media-limit-themes");
+  await fs.mkdir(mediaLimitThemesRoot);
+  await fs.truncate(path.join(videoStage, "background.mp4"), (10 * 1024 * 1024) + 1);
+  const videoImport = await publish(videoStage, mediaLimitThemesRoot);
+  assert.equal(videoImport.status, "imported");
+
+  const oversizedImageStage = await makeStage("image-over-image-limit", "image-over-image-limit");
+  await fs.truncate(path.join(oversizedImageStage, "background.png"), (10 * 1024 * 1024) + 1);
+  await assert.rejects(
+    publish(oversizedImageStage, mediaLimitThemesRoot),
+    /no larger than 10485760 bytes/,
+  );
+
   const duplicateStage = await makeStage("duplicate", "different-package-id");
   const duplicate = await publish(duplicateStage);
   assert.equal(duplicate.status, "duplicate");

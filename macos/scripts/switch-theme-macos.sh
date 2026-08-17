@@ -134,7 +134,9 @@ process.stdout.write(value.contentFingerprint);
 "$NODE" "$INJECTOR" --check-payload --theme-dir "$stage" >/dev/null \
   || fail "Theme pack failed validation: $THEME_ID"
 THEME_BYTES="$(/usr/bin/stat -f '%z' "$stage/$THEME_IMAGE")"
-[ "$THEME_BYTES" -gt 0 ] && [ "$THEME_BYTES" -le 10485760 ] \
+THEME_MAX_BYTES=10485760
+case "$THEME_IMAGE" in *.mp4|*.webm) THEME_MAX_BYTES=33554432 ;; esac
+[ "$THEME_BYTES" -gt 0 ] && [ "$THEME_BYTES" -le "$THEME_MAX_BYTES" ] \
   || fail "Theme image must be non-empty and no larger than 10 MiB."
 SAFE_CSS_NAME=""
 [ ! -f "$stage/theme.css" ] || SAFE_CSS_NAME="theme.css"

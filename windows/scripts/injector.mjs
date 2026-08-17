@@ -44,7 +44,7 @@ const SKIN_VERSION = "1.5.14";
 // literal `const SKIN_VERSION = "...";` line, so the export stays a separate
 // statement rather than an inline `export const`.
 export { SKIN_VERSION };
-const MAX_ART_BYTES = 10 * 1024 * 1024;
+const MAX_ART_BYTES = 32 * 1024 * 1024;
 const MAX_SAFE_CSS_BYTES = 256 * 1024;
 const STRONG_THEME_AUDIT_MS = 30000;
 const MIN_RENDERER_VIEWPORT_WIDTH = 320;
@@ -540,7 +540,7 @@ export async function loadTheme(themeDir) {
     throw new Error("Theme image must remain inside the selected theme directory");
   }
   const extension = path.extname(imagePath).toLowerCase();
-  if (![".png", ".jpg", ".jpeg", ".webp"].includes(extension)) {
+  if (![".png", ".jpg", ".jpeg", ".webp", ".mp4", ".webm"].includes(extension)) {
     throw new Error(`Unsupported theme image format: ${extension || "missing"}`);
   }
   const realImagePath = await fs.realpath(imagePath);
@@ -603,8 +603,8 @@ export async function loadTheme(themeDir) {
   if (imageBytes.length < 1 || imageBytes.length > MAX_ART_BYTES) {
     throw new Error(`Theme image must be between 1 byte and ${MAX_ART_BYTES / 1024 / 1024} MB`);
   }
-  const artMetadata = readImageMetadata(imageBytes, extension);
-  if (!artMetadata) {
+  const artMetadata = /\.mp4$|\.webm$/i.test(extension) ? null : readImageMetadata(imageBytes, extension);
+  if (!artMetadata && !/\.mp4$|\.webm$/i.test(extension)) {
     throw new Error("Theme image metadata is invalid or exceeds the 16384px / 50MP safety limit");
   }
   theme.artMetadata = artMetadata;
@@ -639,7 +639,8 @@ export async function loadPayload(themeDir = path.join(root, "assets"), candidat
   const combinedCss = loadedTheme.safeCssRuntime
     ? `${css}\n${loadedTheme.safeCssRuntime}\n` : css;
   const extension = path.extname(loadedTheme.imagePath).toLowerCase();
-  const mime = extension === ".jpg" || extension === ".jpeg" ? "image/jpeg"
+  const mime = extension === ".mp4" ? "video/mp4" : extension === ".webm" ? "video/webm"
+    : extension === ".jpg" || extension === ".jpeg" ? "image/jpeg"
     : extension === ".webp" ? "image/webp" : "image/png";
   const artDataUrl = `data:${mime};base64,${loadedTheme.imageBytes.toString("base64")}`;
   const styleRevision = createHash("sha256").update(combinedCss).digest("hex").slice(0, 20);

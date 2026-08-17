@@ -109,7 +109,7 @@ async function main() {
   const imagePath = path.resolve(sourceRoot, theme.image);
   assertContained(sourceRoot, imagePath, "Theme image");
   const [image, safeCss] = await Promise.all([
-    readStableFile(imagePath, "Theme image", MAX_IMAGE_BYTES),
+    readStableFile(imagePath, "Theme image", /\.(?:mp4|webm)$/i.test(theme.image) ? 32 * 1024 * 1024 : MAX_IMAGE_BYTES),
     readOptionalStableFile(path.join(sourceRoot, "theme.css"), "Theme Safe CSS", MAX_CSS_BYTES),
   ]);
   if (image.bytes.length < 1) throw new Error("Theme image is empty");
