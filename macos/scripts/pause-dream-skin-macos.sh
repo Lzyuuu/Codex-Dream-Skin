@@ -82,9 +82,11 @@ wait_for_operation_ack() {
 
 PORT=9341
 PORT_EXPLICIT="false"
+STOP_INJECTOR="false"
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --port) PORT="${2:-}"; PORT_EXPLICIT="true"; shift 2 ;;
+    --stop-injector) STOP_INJECTOR="true"; shift ;;
     *) fail "Unknown pause argument: $1" ;;
   esac
 done
@@ -127,7 +129,7 @@ if [ -f "$STATE_PATH" ]; then
   recorded_node="$(state_field nodePath 2>/dev/null || true)"
   recorded_path="$(state_field injectorPath 2>/dev/null || true)"
   recorded_port="$(state_field port 2>/dev/null || true)"
-  if [ "$injector_protocol" = "3" ]; then
+  if [ "$injector_protocol" = "3" ] && [ "$STOP_INJECTOR" != "true" ]; then
     case "$recorded_pid" in
       ''|*[!0-9]*) ;;
       *)
